@@ -5,21 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
   <title>my-notes</title>
   
+  <!-- Math & Code Support -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
 
   <style>
-    :root { --bg: #fff; --txt: #161616; --ui: rgba(0,0,0,0.05); --acc: #007aff; --font: ui-monospace, 'Cascadia Code', monospace; }
+    :root { --bg: #fff; --txt: #161616; --ui: rgba(0,0,0,0.05); --acc: #007aff; --font: ui-monospace, monospace; }
     [data-theme="dark"] { --bg: #0b0b0b; --txt: #d1d1d1; --ui: rgba(255,255,255,0.08); --acc: #ff9500; }
     [data-theme="sepia"] { --bg: #f4ecd8; --txt: #5b4636; --ui: rgba(0,0,0,0.04); --acc: #8c6a5a; }
     [data-theme="oled"] { --bg: #000; --txt: #fff; --ui: #111; --acc: #5e5ce6; }
 
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    body { background: var(--bg); color: var(--txt); height: 100%; font-family: var(--font); transition: background 0.4s; overflow: hidden; }
+    body { background: var(--bg); color: var(--txt); height: 100%; font-family: var(--font); transition: 0.3s; overflow: hidden; }
     
-    /* The Editor */
     article {
       outline: none; padding: 80px max(20px, calc(50vw - 350px)) 50vh;
       height: 100vh; line-height: 1.7; font-size: 18px;
@@ -28,14 +28,17 @@
     }
     article::-webkit-scrollbar { display: none; }
     
-    /* Navigation & Menus */
+    /* Navigation */
     .nav { position: fixed; top: 15px; right: 15px; display: flex; gap: 8px; z-index: 100; transition: 0.3s; }
+    .nav.hide { opacity: 0.1; pointer-events: none; }
+    
     button { 
-      background: var(--ui); border: none; color: var(--txt); padding: 8px 14px; 
-      border-radius: 10px; cursor: pointer; font-size: 12px; font-weight: 600;
+      background: var(--ui); border: none; color: var(--txt); padding: 8px 12px; 
+      border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600;
       backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     }
 
+    /* Sidebar */
     #sidebar {
       position: fixed; left: -320px; top: 0; width: 320px; height: 100%;
       background: var(--bg); border-right: 1px solid var(--ui); z-index: 200;
@@ -44,28 +47,34 @@
     }
     #sidebar.open { left: 0; box-shadow: 20px 0 60px rgba(0,0,0,0.3); }
 
-    /* Quick Toolbar for Mobile */
+    #search {
+      width: 100%; background: var(--ui); border: 1px solid rgba(128,128,128,0.2);
+      padding: 10px; color: var(--txt); border-radius: 8px; margin-bottom: 10px; outline: none;
+    }
+
+    #note-list { flex: 1; overflow-y: auto; }
+    .note-item { 
+      padding: 12px; border-radius: 10px; margin-bottom: 6px; 
+      background: var(--ui); cursor: pointer; font-size: 13px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .note-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+
+    /* Mobile Toolbar */
     #toolbar {
       position: fixed; bottom: 0; left: 0; width: 100%;
       display: flex; overflow-x: auto; background: var(--bg);
       padding: 8px; gap: 8px; border-top: 1px solid var(--ui);
       z-index: 90; transform: translateY(100%); transition: 0.3s;
     }
-    .typing #toolbar { transform: translateY(0); }
+    body.typing #toolbar { transform: translateY(0); }
 
-    .note-group-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; margin: 15px 0 8px; opacity: 0.5; }
-    .note-item { 
-      padding: 12px; border-radius: 10px; margin-bottom: 6px; 
-      background: var(--ui); cursor: pointer; font-size: 13px;
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    .note-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px; }
+    /* Rendered View */
+    img { max-width: 100%; border-radius: 12px; display: block; margin: 20px 0; }
+    .wikilink { color: var(--acc); text-decoration: underline; cursor: pointer; }
+    pre { background: #111 !important; padding: 1em; border-radius: 8px; margin: 1em 0; }
     
-    /* Rendered Extras */
-    img { max-width: 100%; border-radius: 12px; display: block; margin: 20px 0; border: 1px solid var(--ui); }
-    .wikilink { color: var(--acc); text-decoration: underline; }
-    footer { position: fixed; bottom: 15px; left: 15px; font-size: 10px; opacity: 0.3; }
-    .hide { opacity: 0 !important; pointer-events: none; }
+    footer { position: fixed; bottom: 15px; left: 15px; font-size: 10px; opacity: 0.3; pointer-events: none; }
   </style>
 </head>
 <body data-theme="light">
@@ -73,17 +82,19 @@
 <div id="sidebar">
   <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
     <h3 style="font-size:18px;">Brain</h3>
-    <button onclick="toggleSidebar()" style="background:none;">&times;</button>
+    <button onclick="toggleSidebar()" style="background:none; font-size:20px;">&times;</button>
   </div>
-  <input type="text" id="search" placeholder="Search..." oninput="renderLibrary()" 
-         style="width:100%; padding:10px; background:var(--ui); border:none; border-radius:8px; color:var(--txt); margin-bottom:10px;">
   
-  <div id="note-list" style="flex:1; overflow-y:auto;"></div>
+  <input type="text" id="search" placeholder="Search notes..." oninput="renderLibrary()">
+  <button onclick="dailyNote()" style="width: 100%; margin-bottom: 15px;">📅 Today</button>
   
-  <button onclick="saveToLibrary()" style="width:100%; margin-top:10px; background:var(--acc); color:#fff;">+ New Entry</button>
-  <div style="display:flex; gap:5px; margin-top:10px;">
-    <button onclick="exportJSON()" style="flex:1">Export</button>
-    <button onclick="dailyNote()" style="flex:1">Today</button>
+  <div id="note-list"></div>
+  
+  <button onclick="saveToLibrary()" style="width: 100%; margin-top: 15px; background: var(--acc); color: white;">+ Save to Library</button>
+  
+  <div style="display: flex; gap: 5px; margin-top: 10px;">
+    <button onclick="exportJSON()" style="flex: 1;">Export</button>
+    <button onclick="importJSON()" style="flex: 1;">Import</button>
   </div>
 </div>
 
@@ -103,7 +114,6 @@
   <button onclick="insert('`')">code</button>
   <button onclick="insert('$')">math</button>
   <button onclick="insert('---')">—</button>
-  <button onclick="insert(new Date().toLocaleTimeString())">time</button>
 </div>
 
 <footer><span id="stats">0 words</span></footer>
@@ -115,63 +125,7 @@
   let isRendered = false;
   let rawContent = "";
 
-  // 1. Image Minifier & Paste Logic
-  article.addEventListener('paste', async (e) => {
-    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    for (const item of items) {
-      if (item.type.indexOf("image") !== -1) {
-        e.preventDefault();
-        const blob = item.getAsFile();
-        const compressed = await compressImage(blob);
-        insert(`\n![img](${compressed})\n`);
-      }
-    }
-  });
-
-  async function compressImage(file) {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (e) => {
-        const img = new Image();
-        img.src = e.target.result;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const max = 600; // Cap size for URL health
-          let w = img.width, h = img.height;
-          if (w > h && w > max) { h *= max / w; w = max; }
-          else if (h > max) { w *= max / h; h = max; }
-          canvas.width = w; canvas.height = h;
-          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/jpeg', 0.6)); // High compression
-        };
-      };
-    });
-  }
-
-  // 2. Navigation & Rendering
-  function toggleView() {
-    isRendered = !isRendered;
-    viewBtn.classList.toggle('active', isRendered);
-    if (isRendered) {
-      rawContent = article.textContent;
-      let html = rawContent.replace(/&/g, '&amp;').replace(/</g, '&lt;')
-        .replace(/\[\[(.*?)\]\]/g, (m, n) => `<span class="wikilink">[[${n}]]</span>`)
-        .replace(/!\[img\]\((.*?)\)/g, (m, src) => `<img src="${src}">`)
-        .replace(/```(\w+)?\n([\s\S]+?)\n```/g, (m, l, c) => `<pre class="language-${l||'clike'}"><code>${c}</code></pre>`)
-        .replace(/\$\$([\s\S]+?)\$\$/g, (m, mth) => `<div style="margin:1em 0;">${mth}</div>`)
-        .replace(/\$([^\n$]+?)\$/g, (m, mth) => `<span>${mth}</span>`);
-      article.innerHTML = html;
-      article.contentEditable = false;
-      if (window.Prism) Prism.highlightAllUnder(article);
-    } else {
-      article.contentEditable = 'plaintext-only';
-      article.textContent = rawContent;
-      article.focus();
-    }
-  }
-
-  // 3. Smart Persistence
+  // 1. Core Persistence
   async function autoSave() {
     if (isRendered) return;
     const text = article.textContent;
@@ -184,21 +138,24 @@
   }
 
   function saveToLibrary() {
-    const text = article.textContent;
-    const hash = location.hash;
-    if (!text.trim()) return;
-
-    let title = text.trim().split('\n')[0].replace('#', '').trim();
-    title = title.length > 30 ? title.substring(0, 30) + '...' : title || 'New Note';
-
+    const text = article.textContent.trim();
+    if (!text) return;
+    
+    // Manual bookmarking
+    let title = text.split('\n')[0].replace('#', '').trim();
+    if (title.length > 30) title = title.substring(0, 30) + "...";
+    
     const db = JSON.parse(localStorage.getItem('notes-db') || '[]');
-    const existing = db.findIndex(n => n.hash === hash);
-    if (existing > -1) db.splice(existing, 1);
+    const hash = location.hash;
+    
+    const existingIndex = db.findIndex(n => n.hash === hash);
+    if (existingIndex > -1) db.splice(existingIndex, 1);
     
     db.unshift({ title, hash, date: Date.now() });
-    localStorage.setItem('notes-db', JSON.stringify(db.slice(0, 50)));
+    localStorage.setItem('notes-db', JSON.stringify(db.slice(0, 100)));
     renderLibrary();
     if (navigator.vibrate) navigator.vibrate(20);
+    alert('Note bookmarked in library');
   }
 
   function renderLibrary() {
@@ -207,22 +164,55 @@
     const container = document.getElementById('note-list');
     
     const filtered = db.filter(n => n.title.toLowerCase().includes(q));
-    
-    // Categorize by date
-    container.innerHTML = filtered.map((n, i) => {
-      let header = "";
-      const d = new Date(n.date).toLocaleDateString();
-      if (i === 0 || d !== new Date(db[i-1].date).toLocaleDateString()) {
-        header = `<div class="note-group-title">${d === new Date().toLocaleDateString() ? 'Today' : d}</div>`;
-      }
-      return `${header}<div class="note-item" onclick="location.hash='${n.hash}'; toggleSidebar();">
+    container.innerHTML = filtered.map(n => `
+      <div class="note-item" onclick="location.hash='${n.hash}'; toggleSidebar();">
         <span>${n.title}</span>
-        <small style="opacity:0.2" onclick="deleteNote('${n.hash}'); event.stopPropagation();">&times;</small>
-      </div>`;
-    }).join('');
+        <small style="opacity:0.3; padding:5px;" onclick="deleteNote('${n.hash}'); event.stopPropagation();">&times;</small>
+      </div>
+    `).join('');
   }
 
-  // 4. UI Extras
+  // 2. Rendering
+  function toggleView() {
+    isRendered = !isRendered;
+    viewBtn.classList.toggle('active', isRendered);
+    if (isRendered) {
+      rawContent = article.textContent;
+      let html = rawContent.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/\[\[(.*?)\]\]/g, (m, n) => `<span class="wikilink" onclick="openNote('${n}')">[[${n}]]</span>`)
+        .replace(/!\[img\]\((.*?)\)/g, (m, src) => `<img src="${src}">`)
+        .replace(/```(\w+)?\n([\s\S]+?)\n```/g, (m, l, c) => `<pre class="language-${l||'clike'}"><code>${c}</code></pre>`)
+        .replace(/\$\$([\s\S]+?)\$\$/g, (m, mth) => `<div>${mth}</div>`)
+        .replace(/\$([^\n$]+?)\$/g, (m, mth) => `<span>${mth}</span>`);
+      article.innerHTML = html;
+      article.contentEditable = false;
+      if (window.Prism) Prism.highlightAllUnder(article);
+    } else {
+      article.contentEditable = 'plaintext-only';
+      article.textContent = rawContent;
+      article.focus();
+    }
+  }
+
+  // 3. Smart Typing Features
+  article.addEventListener('keydown', e => {
+    if (isRendered) return;
+    if (e.key === 'Enter') {
+      const sel = window.getSelection();
+      const range = sel.getRangeAt(0);
+      const text = range.startContainer.textContent.substring(0, range.startOffset);
+      const line = text.split('\n').pop();
+      const match = line.match(/^(\s*([-*]|\[[ x]\]|\d+\.)\s*)/);
+      if (match) {
+        e.preventDefault();
+        let marker = match[0];
+        if (marker.match(/\d+/)) marker = marker.replace(/\d+/, m => parseInt(m) + 1);
+        document.execCommand('insertText', false, '\n' + marker);
+      }
+    }
+  });
+
+  // 4. UI Helpers
   function insert(s) { document.execCommand('insertText', false, s); article.focus(); }
   function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
   function cycleTheme() {
@@ -238,8 +228,12 @@
     
     // Focus Mode
     document.body.classList.add('typing');
+    document.getElementById('nav').classList.add('hide');
     clearTimeout(window.typeTimer);
-    window.typeTimer = setTimeout(() => document.body.classList.remove('typing'), 1500);
+    window.typeTimer = setTimeout(() => {
+      document.body.classList.remove('typing');
+      document.getElementById('nav').classList.remove('hide');
+    }, 1500);
   }
 
   // Utilities
@@ -269,6 +263,7 @@
     if (hash && hash !== '#') {
        try { article.textContent = await decompress(hash.slice(1)); } catch (e) {}
     }
+    updateUI();
   }
 
   window.onload = () => {
