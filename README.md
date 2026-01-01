@@ -18,3 +18,7 @@ your text is compressed into the link. copy the url to save or share. if you wan
 - **library**: save notes to your sidebar to build a second brain.
 - **tasks**: type `[ ]` for checkboxes. you can tap them to toggle.
 - **images**: paste any image from your clipboard directly into the note.
+
+### how it works
+your text → utf8 → deflate-raw → base64url.
+it's just a single html file using modern browser apis. lowkey and private.
