@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QR Code</title>
+  <style>
+    body { 
+      display: flex; flex-direction: column; align-items: center; justify-content: center; 
+      min-height: 100vh; margin: 0; font-family: system-ui; 
+      background: #000; color: #fff;
+    }
+    #qrcode { background: white; padding: 20px; border-radius: 12px; }
+    img { display: block; max-width: 80vw; height: auto; }
+    a { color: #888; margin-top: 20px; text-decoration: none; border: 1px solid #444; padding: 10px 20px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <div id="qrcode"></div>
+  <a id="back" href="./">Back to Editor</a>
+
+  <script>
+    function render() {
+      const hash = location.hash;
+      const url = encodeURIComponent('https://' + location.hostname + location.pathname.replace('qr.html', '') + hash);
+      // Using a lightweight, privacy-focused QR generator
+      document.getElementById('qrcode').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${url}" alt="QR Code">`;
+      document.getElementById('back').href = './' + hash;
+    }
+    render();
+    window.onhashchange = render;
+  </script>
+</body>
+</html>
