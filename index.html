@@ -3,116 +3,114 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
-  <title>my-notes</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>textarea</title>
   
-  <!-- Math & Code Support -->
+  <!-- Assets -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
 
   <style>
-    :root { --bg: #fff; --txt: #161616; --ui: rgba(0,0,0,0.05); --acc: #007aff; --font: ui-monospace, monospace; }
+    :root { --bg: #fff; --txt: #161616; --ui: rgba(0,0,0,0.05); --acc: #007aff; --font: ui-monospace, Menlo, monospace; }
     [data-theme="dark"] { --bg: #0b0b0b; --txt: #d1d1d1; --ui: rgba(255,255,255,0.08); --acc: #ff9500; }
-    [data-theme="sepia"] { --bg: #f4ecd8; --txt: #5b4636; --ui: rgba(0,0,0,0.04); --acc: #8c6a5a; }
     [data-theme="oled"] { --bg: #000; --txt: #fff; --ui: #111; --acc: #5e5ce6; }
 
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    body { background: var(--bg); color: var(--txt); height: 100%; font-family: var(--font); transition: 0.3s; overflow: hidden; }
+    body { background: var(--bg); color: var(--txt); height: 100vh; font-family: var(--font); transition: background 0.3s; overflow: hidden; position: fixed; width: 100%; }
     
+    /* Main Area */
     article {
       outline: none; padding: 80px max(20px, calc(50vw - 350px)) 50vh;
       height: 100vh; line-height: 1.7; font-size: 18px;
       white-space: pre-wrap; overflow-wrap: break-word; overflow-y: auto;
-      scrollbar-width: none;
+      scrollbar-width: none; -webkit-overflow-scrolling: touch;
     }
     article::-webkit-scrollbar { display: none; }
-    
-    /* Navigation */
-    .nav { position: fixed; top: 15px; right: 15px; display: flex; gap: 8px; z-index: 100; transition: 0.3s; }
-    .nav.hide { opacity: 0.1; pointer-events: none; }
-    
+    article[contenteditable="false"] { font-family: system-ui, -apple-system, sans-serif; }
+
+    /* Floating UI */
+    .nav { position: fixed; top: 15px; right: 15px; display: flex; gap: 8px; z-index: 100; transition: opacity 0.3s; }
     button { 
-      background: var(--ui); border: none; color: var(--txt); padding: 8px 12px; 
-      border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600;
+      background: var(--ui); border: none; color: var(--txt); padding: 8px 14px; 
+      border-radius: 10px; cursor: pointer; font-size: 12px; font-weight: 600;
       backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     }
+    button.active { background: var(--txt); color: var(--bg); }
 
-    /* Sidebar */
+    /* Sidebar - Improved Layering */
     #sidebar {
       position: fixed; left: -320px; top: 0; width: 320px; height: 100%;
-      background: var(--bg); border-right: 1px solid var(--ui); z-index: 200;
-      padding: 20px; transition: 0.5s cubic-bezier(0.19, 1, 0.22, 1);
-      display: flex; flex-direction: column;
+      background: var(--bg); border-right: 1px solid var(--ui); z-index: 500;
+      padding: 20px; transition: transform 0.4s cubic-bezier(0.19, 1, 0.22, 1);
+      display: flex; flex-direction: column; box-shadow: 10px 0 30px rgba(0,0,0,0);
     }
-    #sidebar.open { left: 0; box-shadow: 20px 0 60px rgba(0,0,0,0.3); }
+    #sidebar.open { transform: translateX(320px); box-shadow: 10px 0 30px rgba(0,0,0,0.2); }
 
+    .sb-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     #search {
-      width: 100%; background: var(--ui); border: 1px solid rgba(128,128,128,0.2);
+      width: 100%; background: var(--ui); border: 1px solid transparent;
       padding: 10px; color: var(--txt); border-radius: 8px; margin-bottom: 10px; outline: none;
     }
+    #search:focus { border-color: var(--acc); }
 
+    /* Note List Item - Fixed Event Target */
     #note-list { flex: 1; overflow-y: auto; }
     .note-item { 
       padding: 12px; border-radius: 10px; margin-bottom: 6px; 
       background: var(--ui); cursor: pointer; font-size: 13px;
       display: flex; justify-content: space-between; align-items: center;
+      position: relative;
     }
-    .note-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+    .note-item .title-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; pointer-events: none; }
+    .del-btn { 
+      padding: 5px 10px; margin-left: 10px; opacity: 0.3; font-size: 16px; 
+      cursor: pointer; z-index: 10; background: none; border: none; color: inherit;
+    }
+    .del-btn:hover { opacity: 1; color: red; }
 
-    /* Mobile Toolbar */
+    /* Mobile Keyboard Toolbar */
     #toolbar {
       position: fixed; bottom: 0; left: 0; width: 100%;
       display: flex; overflow-x: auto; background: var(--bg);
       padding: 8px; gap: 8px; border-top: 1px solid var(--ui);
-      z-index: 90; transform: translateY(100%); transition: 0.3s;
+      z-index: 400; transform: translateY(100%); transition: transform 0.2s ease-out;
     }
-    body.typing #toolbar { transform: translateY(0); }
+    body.keyboard-open #toolbar { transform: translateY(0); }
 
-    /* Rendered View */
-    img { max-width: 100%; border-radius: 12px; display: block; margin: 20px 0; }
-    .wikilink { color: var(--acc); text-decoration: underline; cursor: pointer; }
-    pre { background: #111 !important; padding: 1em; border-radius: 8px; margin: 1em 0; }
-    
-    footer { position: fixed; bottom: 15px; left: 15px; font-size: 10px; opacity: 0.3; pointer-events: none; }
+    /* Utils */
+    footer { position: fixed; bottom: 15px; left: 15px; font-size: 10px; opacity: 0.3; pointer-events: none; z-index: 50; }
+    .hide { opacity: 0; pointer-events: none; }
   </style>
 </head>
 <body data-theme="light">
 
 <div id="sidebar">
-  <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-    <h3 style="font-size:18px;">Brain</h3>
-    <button onclick="toggleSidebar()" style="background:none; font-size:20px;">&times;</button>
+  <div class="sb-header">
+    <h3 style="font-size:18px;">Library</h3>
+    <button onclick="toggleSidebar()">&times; Close</button>
   </div>
-  
   <input type="text" id="search" placeholder="Search notes..." oninput="renderLibrary()">
-  <button onclick="dailyNote()" style="width: 100%; margin-bottom: 15px;">📅 Today</button>
-  
   <div id="note-list"></div>
-  
-  <button onclick="saveToLibrary()" style="width: 100%; margin-top: 15px; background: var(--acc); color: white;">+ Save to Library</button>
-  
-  <div style="display: flex; gap: 5px; margin-top: 10px;">
-    <button onclick="exportJSON()" style="flex: 1;">Export</button>
-    <button onclick="importJSON()" style="flex: 1;">Import</button>
-  </div>
+  <button onclick="saveToLibrary()" style="width: 100%; margin-top: 15px; background: var(--acc); color: white; padding: 12px;">+ Save Current</button>
 </div>
 
 <div class="nav" id="nav">
-  <button onclick="toggleSidebar()">notes</button>
-  <button onclick="cycleTheme()">vibe</button>
-  <button id="view-btn" onclick="toggleView()">render</button>
-  <button onclick="copyLink()">share</button>
+  <button onclick="toggleSidebar()">Library</button>
+  <button onclick="cycleTheme()">Vibe</button>
+  <button id="view-btn" onclick="toggleView()">Render</button>
+  <button onclick="copyLink()">Share</button>
 </div>
 
-<article contenteditable="plaintext-only" spellcheck="true" autofocus placeholder="Start writing..."></article>
+<article contenteditable="plaintext-only" spellcheck="true" autofocus placeholder="Start typing..."></article>
 
 <div id="toolbar">
   <button onclick="insert(' # ')">#</button>
   <button onclick="insert('[[')">[[</button>
-  <button onclick="insert('[ ] ')">todo</button>
-  <button onclick="insert('`')">code</button>
-  <button onclick="insert('$')">math</button>
+  <button onclick="insert('[ ] ')">Todo</button>
+  <button onclick="insert('`')">Code</button>
+  <button onclick="insert('$')">Math</button>
   <button onclick="insert('---')">—</button>
 </div>
 
@@ -121,11 +119,33 @@
 <script>
   const article = document.querySelector('article');
   const viewBtn = document.getElementById('view-btn');
-  const themes = ['light', 'dark', 'sepia', 'oled'];
+  const nav = document.getElementById('nav');
+  const themes = ['light', 'dark', 'oled'];
   let isRendered = false;
   let rawContent = "";
 
-  // 1. Core Persistence
+  // 1. DATA PERSISTENCE (Audit: Corrected base64 padding/alphabet)
+  async function compress(s) {
+    const b = new TextEncoder().encode(s);
+    const st = new CompressionStream('deflate-raw');
+    const w = st.writable.getWriter();
+    w.write(b); w.close();
+    const r = await new Response(st.readable).arrayBuffer();
+    return btoa(String.fromCharCode(...new Uint8Array(r))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  async function decompress(n) {
+    try {
+      const s = atob(n.replace(/-/g, '+').replace(/_/g, '/'));
+      const b = Uint8Array.from(s, c => c.charCodeAt(0));
+      const st = new DecompressionStream('deflate-raw');
+      const w = st.writable.getWriter();
+      w.write(b); w.close();
+      const r = await new Response(st.readable).arrayBuffer();
+      return new TextDecoder().decode(r);
+    } catch(e) { return ""; }
+  }
+
   async function autoSave() {
     if (isRendered) return;
     const text = article.textContent;
@@ -137,17 +157,18 @@
     updateUI();
   }
 
+  // 2. LIBRARY LOGIC (Audit: Fixed Propagation & Collision)
   function saveToLibrary() {
     const text = article.textContent.trim();
     if (!text) return;
     
-    // Manual bookmarking
     let title = text.split('\n')[0].replace('#', '').trim();
-    if (title.length > 30) title = title.substring(0, 30) + "...";
-    
+    title = title.length > 40 ? title.substring(0, 40) + "..." : title || "Untitled Note";
+
     const db = JSON.parse(localStorage.getItem('notes-db') || '[]');
     const hash = location.hash;
     
+    // Remove if exists (to move to top)
     const existingIndex = db.findIndex(n => n.hash === hash);
     if (existingIndex > -1) db.splice(existingIndex, 1);
     
@@ -155,7 +176,6 @@
     localStorage.setItem('notes-db', JSON.stringify(db.slice(0, 100)));
     renderLibrary();
     if (navigator.vibrate) navigator.vibrate(20);
-    alert('Note bookmarked in library');
   }
 
   function renderLibrary() {
@@ -163,57 +183,59 @@
     const db = JSON.parse(localStorage.getItem('notes-db') || '[]');
     const container = document.getElementById('note-list');
     
-    const filtered = db.filter(n => n.title.toLowerCase().includes(q));
-    container.innerHTML = filtered.map(n => `
-      <div class="note-item" onclick="location.hash='${n.hash}'; toggleSidebar();">
-        <span>${n.title}</span>
-        <small style="opacity:0.3; padding:5px;" onclick="deleteNote('${n.hash}'); event.stopPropagation();">&times;</small>
-      </div>
-    `).join('');
+    container.innerHTML = db
+      .filter(n => n.title.toLowerCase().includes(q))
+      .map(n => `
+        <div class="note-item" onclick="openFromLibrary('${n.hash}')">
+          <span class="title-text">${n.title}</span>
+          <button class="del-btn" onclick="deleteNote(event, '${n.hash}')">&times;</button>
+        </div>
+      `).join('');
   }
 
-  // 2. Rendering
+  function openFromLibrary(hash) {
+    location.hash = hash;
+    toggleSidebar();
+  }
+
+  function deleteNote(e, hash) {
+    e.stopPropagation(); // CRITICAL: Stop the note from opening/sidebar from closing
+    let db = JSON.parse(localStorage.getItem('notes-db') || '[]');
+    db = db.filter(n => n.hash !== hash);
+    localStorage.setItem('notes-db', JSON.stringify(db));
+    renderLibrary();
+  }
+
+  // 3. RENDERING (Audit: Sanitization & Mode Handling)
   function toggleView() {
     isRendered = !isRendered;
     viewBtn.classList.toggle('active', isRendered);
     if (isRendered) {
       rawContent = article.textContent;
-      let html = rawContent.replace(/&/g, '&amp;').replace(/</g, '&lt;')
-        .replace(/\[\[(.*?)\]\]/g, (m, n) => `<span class="wikilink" onclick="openNote('${n}')">[[${n}]]</span>`)
-        .replace(/!\[img\]\((.*?)\)/g, (m, src) => `<img src="${src}">`)
+      let html = rawContent
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
         .replace(/```(\w+)?\n([\s\S]+?)\n```/g, (m, l, c) => `<pre class="language-${l||'clike'}"><code>${c}</code></pre>`)
-        .replace(/\$\$([\s\S]+?)\$\$/g, (m, mth) => `<div>${mth}</div>`)
-        .replace(/\$([^\n$]+?)\$/g, (m, mth) => `<span>${mth}</span>`);
+        .replace(/\$\$([\s\S]+?)\$\$/g, (m, mth) => `<div class="math-block">${mth}</div>`)
+        .replace(/\$([^\n$]+?)\$/g, (m, mth) => `<span class="math-inline">${mth}</span>`);
+      
       article.innerHTML = html;
       article.contentEditable = false;
+      article.setAttribute('contenteditable', 'false'); // Fix for some browsers
+      
       if (window.Prism) Prism.highlightAllUnder(article);
+      if (window.katex) {
+        document.querySelectorAll('.math-block').forEach(el => katex.render(el.textContent, el, { displayMode: true, throwOnError: false }));
+        document.querySelectorAll('.math-inline').forEach(el => katex.render(el.textContent, el, { displayMode: false, throwOnError: false }));
+      }
     } else {
       article.contentEditable = 'plaintext-only';
+      article.setAttribute('contenteditable', 'plaintext-only');
       article.textContent = rawContent;
       article.focus();
     }
   }
 
-  // 3. Smart Typing Features
-  article.addEventListener('keydown', e => {
-    if (isRendered) return;
-    if (e.key === 'Enter') {
-      const sel = window.getSelection();
-      const range = sel.getRangeAt(0);
-      const text = range.startContainer.textContent.substring(0, range.startOffset);
-      const line = text.split('\n').pop();
-      const match = line.match(/^(\s*([-*]|\[[ x]\]|\d+\.)\s*)/);
-      if (match) {
-        e.preventDefault();
-        let marker = match[0];
-        if (marker.match(/\d+/)) marker = marker.replace(/\d+/, m => parseInt(m) + 1);
-        document.execCommand('insertText', false, '\n' + marker);
-      }
-    }
-  });
-
-  // 4. UI Helpers
-  function insert(s) { document.execCommand('insertText', false, s); article.focus(); }
+  // 4. UI ENGINE (Audit: Mobile keyboard & Selection)
   function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
   function cycleTheme() {
     const cur = document.body.getAttribute('data-theme') || 'light';
@@ -222,53 +244,44 @@
     localStorage.setItem('theme', next);
   }
 
+  function insert(s) {
+    if (isRendered) return;
+    document.execCommand('insertText', false, s);
+    article.focus();
+  }
+
   function updateUI() {
     const text = article.textContent.trim();
     document.getElementById('stats').textContent = `${text ? text.split(/\s+/).length : 0} words`;
     
-    // Focus Mode
-    document.body.classList.add('typing');
-    document.getElementById('nav').classList.add('hide');
+    // Focus Mode Logic
+    nav.classList.add('hide');
     clearTimeout(window.typeTimer);
-    window.typeTimer = setTimeout(() => {
-      document.body.classList.remove('typing');
-      document.getElementById('nav').classList.remove('hide');
-    }, 1500);
+    window.typeTimer = setTimeout(() => nav.classList.remove('hide'), 1200);
   }
 
-  // Utilities
-  async function compress(s) {
-    const b = new TextEncoder().encode(s);
-    const st = new CompressionStream('deflate-raw');
-    const w = st.writable.getWriter(); w.write(b); w.close();
-    const r = await new Response(st.readable).arrayBuffer();
-    return btoa(String.fromCharCode(...new Uint8Array(r))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
+  // Mobile Keyboard Detection
+  article.onfocus = () => document.body.classList.add('keyboard-open');
+  article.onblur = () => setTimeout(() => document.body.classList.remove('keyboard-open'), 100);
 
-  async function decompress(n) {
-    const s = atob(n.replace(/-/g, '+').replace(/_/g, '/'));
-    const b = Uint8Array.from(s, c => c.charCodeAt(0));
-    const st = new DecompressionStream('deflate-raw');
-    const w = st.writable.getWriter(); w.write(b); w.close();
-    const r = await new Response(st.readable).arrayBuffer();
-    return new TextDecoder().decode(r);
-  }
-
+  // Debounced input
   const debounce = (f, ms) => { let t; return () => { clearTimeout(t); t = setTimeout(f, ms); }; };
   article.oninput = debounce(autoSave, 500);
-  window.onhashchange = () => { if(!isRendered) load(); };
-  
-  async function load() {
-    const hash = location.hash || localStorage.getItem('hash');
-    if (hash && hash !== '#') {
-       try { article.textContent = await decompress(hash.slice(1)); } catch (e) {}
-    }
-    updateUI();
-  }
 
-  window.onload = () => {
-    load(); renderLibrary();
-    document.body.setAttribute('data-theme', localStorage.getItem('theme')||'light');
+  window.onhashchange = async () => {
+    if (!isRendered) {
+      const hash = location.hash.slice(1);
+      if (hash) article.textContent = await decompress(hash);
+      updateUI();
+    }
+  };
+
+  window.onload = async () => {
+    const hash = location.hash.slice(1) || localStorage.getItem('hash')?.slice(1);
+    if (hash) article.textContent = await decompress(hash);
+    renderLibrary();
+    document.body.setAttribute('data-theme', localStorage.getItem('theme') || 'light');
+    updateUI();
   };
 </script>
 </body>
