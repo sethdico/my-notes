@@ -3,160 +3,138 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
-  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>textarea</title>
   
-  <!-- External Assets (Cached via sw.js) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
 
   <style>
-    :root { --bg: #ffffff; --txt: #161616; --ui: rgba(0,0,0,0.05); --acc: #007aff; }
+    :root { --bg: #fff; --txt: #161616; --ui: rgba(0,0,0,0.05); --acc: #007aff; }
     [data-theme="dark"] { --bg: #0b0b0b; --txt: #d1d1d1; --ui: rgba(255,255,255,0.1); --acc: #ff9500; }
     [data-theme="sepia"] { --bg: #f4ecd8; --txt: #5b4636; --ui: rgba(0,0,0,0.05); --acc: #8c6a5a; }
-    [data-theme="midnight"] { --bg: #000000; --txt: #ffffff; --ui: rgba(255,255,255,0.15); --acc: #5e5ce6; }
+    [data-theme="midnight"] { --bg: #000; --txt: #fff; --ui: rgba(255,255,255,0.15); --acc: #5e5ce6; }
 
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-    body { background: var(--bg); color: var(--txt); height: 100%; font-family: ui-monospace, system-ui, sans-serif; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    body { background: var(--bg); color: var(--txt); height: 100%; font-family: ui-monospace, system-ui, sans-serif; transition: 0.3s; overflow: hidden; }
     
     article {
       outline: none; padding: 80px max(20px, calc(50vw - 350px));
-      min-height: 100vh; line-height: 1.6; font-size: 18px;
-      white-space: pre-wrap; overflow-wrap: break-word; caret-color: var(--acc);
+      height: 100vh; line-height: 1.6; font-size: 18px;
+      white-space: pre-wrap; overflow-wrap: break-word; overflow-y: auto;
     }
-    article.rendered { color: var(--txt); font-family: system-ui, sans-serif; }
     
-    /* Navigation UI */
     .nav { position: fixed; top: 15px; right: 15px; display: flex; gap: 8px; z-index: 100; transition: 0.3s; }
-    .nav.hide { opacity: 0; pointer-events: none; }
     button { 
       background: var(--ui); border: none; color: var(--txt); padding: 8px 12px; 
-      border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500; backdrop-filter: blur(5px);
+      border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500;
     }
-    button.active { background: var(--txt); color: var(--bg); }
 
-    /* Sidebar Library */
     #sidebar {
       position: fixed; left: -300px; top: 0; width: 300px; height: 100%;
       background: var(--bg); border-right: 1px solid var(--ui); z-index: 200;
       padding: 60px 20px; transition: 0.4s cubic-bezier(0.19, 1, 0.22, 1);
-      overflow-y: auto;
     }
     #sidebar.open { left: 0; box-shadow: 20px 0 50px rgba(0,0,0,0.2); }
-    #search { width: 100%; background: var(--ui); border: none; padding: 10px; color: var(--txt); border-radius: 6px; margin-bottom: 20px; }
-    .note-item { padding: 12px; border-radius: 8px; margin-bottom: 8px; background: var(--ui); cursor: pointer; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-    footer { position: fixed; bottom: 15px; left: 15px; font-size: 11px; opacity: 0.4; pointer-events: none; transition: 0.3s; }
-    .typing footer { opacity: 0; }
-
-    /* Code & Math Rendering */
-    pre[class*="language-"] { border-radius: 8px; margin: 1.5em 0; font-size: 15px; }
-    .katex-display { margin: 1em 0; overflow-x: auto; padding: 10px 0; }
     
-    @media print { .nav, footer, #sidebar { display: none; } article { padding: 0; } }
+    .note-item { padding: 12px; border-radius: 8px; margin-bottom: 8px; background: var(--ui); cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; }
+    .note-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Backlinking styles */
+    .wikilink { color: var(--acc); text-decoration: underline; cursor: pointer; }
+    img { max-width: 100%; border-radius: 8px; margin: 10px 0; }
+
+    footer { position: fixed; bottom: 15px; left: 15px; font-size: 11px; opacity: 0.4; }
   </style>
 </head>
 <body data-theme="light">
 
 <div id="sidebar">
-  <input type="text" id="search" placeholder="Search #tags or titles..." oninput="renderLibrary()">
+  <button onclick="dailyNote()" style="width: 100%; margin-bottom: 10px;">📅 Today</button>
   <div id="note-list"></div>
-  <button onclick="saveToLibrary()" style="width: 100%; margin-top: 20px; background: var(--acc); color: white;">+ Save to Library</button>
+  <div style="position: absolute; bottom: 20px; width: 260px; display: flex; gap: 5px;">
+    <button onclick="exportJSON()" style="flex: 1;">Export</button>
+    <button onclick="importJSON()" style="flex: 1;">Import</button>
+  </div>
 </div>
 
 <div class="nav" id="nav">
   <button onclick="toggleSidebar()">library</button>
-  <button onclick="cycleTheme()">vibe</button>
   <button id="view-btn" onclick="toggleView()">render</button>
   <button onclick="copyLink()">share</button>
 </div>
 
 <article contenteditable="plaintext-only" spellcheck="true" autofocus></article>
 
-<footer>
-  <span id="stats">0 words</span>
-</footer>
+<footer><span id="stats">0w</span></footer>
 
 <script>
   const article = document.querySelector('article');
   const viewBtn = document.getElementById('view-btn');
-  const themes = ['light', 'dark', 'sepia', 'midnight'];
   let isRendered = false;
   let rawContent = "";
 
-  // 1. Smart Editor Logic (Lists, Indents, Pairs)
-  article.addEventListener('keydown', e => {
-    if (isRendered) return;
-    const pairs = { '(': ')', '[': ']', '{': '}', '"': '"', '`': '`' };
-    if (pairs[e.key]) {
-      e.preventDefault();
-      const sel = window.getSelection();
-      const range = sel.getRangeAt(0);
-      document.execCommand('insertText', false, e.key + pairs[e.key]);
-      range.setStart(range.startContainer, range.startOffset - 1);
-      range.collapse(true);
-    }
-    if (e.key === 'Enter') {
-      const sel = window.getSelection();
-      const range = sel.getRangeAt(0);
-      const text = range.startContainer.textContent.substring(0, range.startOffset);
-      const line = text.split('\n').pop();
-      const match = line.match(/^(\s*([-*]|\[[ x]\]|\d+\.)\s*)/);
-      const indentMatch = line.match(/^(\s+)/);
-      if (match) {
+  // 1. Backlinking & Image Support
+  article.addEventListener('paste', async (e) => {
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (const item of items) {
+      if (item.type.indexOf("image") !== -1) {
         e.preventDefault();
-        let marker = match[0];
-        if (marker.match(/\d+/)) marker = marker.replace(/\d+/, m => parseInt(m) + 1);
-        document.execCommand('insertText', false, '\n' + marker);
-      } else if (indentMatch) {
-        e.preventDefault();
-        document.execCommand('insertText', false, '\n' + indentMatch[1]);
+        const blob = item.getAsFile();
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const imgTag = `\n![image](${event.target.result})\n`;
+          document.execCommand('insertText', false, imgTag);
+        };
+        reader.readAsDataURL(blob);
       }
     }
   });
 
-  // 2. Interactive Checkboxes
-  article.onclick = (e) => {
-    if (isRendered) return;
-    const range = document.caretRangeFromPoint(e.clientX, e.clientY);
-    if (!range) return;
-    const text = range.startContainer.textContent;
-    const offset = range.startOffset;
-    if (text.substring(offset-1, offset+2).match(/\[[ x]\]/)) {
-      const isChecked = text.substring(offset-1, offset+2) === '[x]';
-      range.startContainer.textContent = text.substring(0, offset-1) + (isChecked ? '[ ]' : '[x]') + text.substring(offset+2);
-      if (navigator.vibrate) navigator.vibrate(20);
-      save();
-    }
-  };
-
-  // 3. The Render Engine (Markdown + LaTeX + Code)
+  // 2. Render Engine (Markdown + WikiLinks + Images)
   function toggleView() {
     isRendered = !isRendered;
     viewBtn.classList.toggle('active', isRendered);
     if (isRendered) {
       rawContent = article.textContent;
       let html = rawContent.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/\[\[(.*?)\]\]/g, (m, name) => `<span class="wikilink" onclick="openNote('${name}')">[[${name}]]</span>`)
+        .replace(/!\[image\]\((.*?)\)/g, (m, src) => `<img src="${src}">`)
         .replace(/```(\w+)?\n([\s\S]+?)\n```/g, (m, lang, code) => `<pre class="language-${lang||'clike'}"><code>${code}</code></pre>`)
-        .replace(/\$\$([\s\S]+?)\$\$/g, (m, mth) => `<div class="math-block">${mth}</div>`)
-        .replace(/\$([^\n$]+?)\$/g, (m, mth) => `<span class="math-inline">${mth}</span>`);
+        .replace(/\$\$([\s\S]+?)\$\$/g, (m, mth) => `<div>${mth}</div>`)
+        .replace(/\$([^\n$]+?)\$/g, (m, mth) => `<span>${mth}</span>`);
+      
       article.innerHTML = html;
       article.contentEditable = false;
-      article.classList.add('rendered');
       if (window.Prism) Prism.highlightAllUnder(article);
-      document.querySelectorAll('.math-block').forEach(el => katex.render(el.textContent, el, { displayMode: true }));
-      document.querySelectorAll('.math-inline').forEach(el => katex.render(el.textContent, el, { displayMode: false }));
     } else {
       article.contentEditable = 'plaintext-only';
       article.textContent = rawContent;
-      article.classList.remove('rendered');
       article.focus();
     }
   }
 
-  // 4. Persistence Engine
+  function openNote(name) {
+    const notes = JSON.parse(localStorage.getItem('notes-db') || '[]');
+    const note = notes.find(n => n.title.toLowerCase() === name.toLowerCase());
+    if (note) {
+      location.hash = note.hash;
+    } else {
+      article.textContent = `# ${name}\n\nStart writing...`;
+      save();
+    }
+    if(isRendered) toggleView();
+  }
+
+  // 3. Daily Notes
+  function dailyNote() {
+    const today = new Date().toISOString().split('T')[0];
+    openNote(today);
+    toggleSidebar();
+  }
+
+  // 4. Persistence
   async function save() {
     if (isRendered) return;
     const text = article.textContent;
@@ -166,6 +144,15 @@
       localStorage.setItem('hash', hash);
     }
     updateUI();
+    
+    // Update Library Item
+    const notes = JSON.parse(localStorage.getItem('notes-db') || '[]');
+    const title = text.trim().split('\n')[0].replace('#', '').trim() || 'Untitled';
+    const index = notes.findIndex(n => n.hash === hash);
+    if (index > -1) notes[index].title = title;
+    else notes.unshift({ title, hash, date: Date.now() });
+    localStorage.setItem('notes-db', JSON.stringify(notes.slice(0, 100)));
+    renderLibrary();
   }
 
   async function load() {
@@ -174,63 +161,52 @@
       try { article.textContent = await decompress(hash.slice(1)); } catch (e) {}
     }
     updateUI();
-    renderLibrary();
-  }
-
-  function updateUI() {
-    const text = article.textContent.trim();
-    document.getElementById('stats').textContent = `${text ? text.split(/\s+/).length : 0}w | ${text.length}c`;
-    const title = text.match(/^#\s*(.*)/);
-    document.title = title ? title[1].substring(0, 20) : 'textarea';
-  }
-
-  // 5. Library & Themes
-  function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
-  function saveToLibrary() {
-    const text = article.textContent;
-    const title = text.trim().split('\n')[0].replace('#', '').trim() || 'Untitled';
-    const notes = JSON.parse(localStorage.getItem('notes-db') || '[]');
-    const hash = location.hash;
-    if (!notes.find(n => n.hash === hash)) {
-      notes.unshift({ title, hash, tags: (text.match(/#\w+/g) || []) });
-      localStorage.setItem('notes-db', JSON.stringify(notes.slice(0, 50)));
-      renderLibrary();
-    }
   }
 
   function renderLibrary() {
-    const q = document.getElementById('search').value.toLowerCase();
     const notes = JSON.parse(localStorage.getItem('notes-db') || '[]');
-    document.getElementById('note-list').innerHTML = notes
-      .filter(n => n.title.toLowerCase().includes(q) || n.tags.some(t => t.includes(q)))
-      .map(n => `<div class="note-item" onclick="location.hash='${n.hash}'; toggleSidebar();">${n.title}</div>`).join('');
+    document.getElementById('note-list').innerHTML = notes.map(n => `
+      <div class="note-item" onclick="location.hash='${n.hash}'; toggleSidebar();">
+        <span>${n.title}</span>
+        <small style="opacity:0.3" onclick="deleteNote('${n.hash}'); event.stopPropagation();">×</small>
+      </div>
+    `).join('');
   }
 
-  function cycleTheme() {
-    const current = document.body.getAttribute('data-theme');
-    const next = themes[(themes.indexOf(current) + 1) % themes.length];
-    document.body.setAttribute('data-theme', next);
-    localStorage.setItem('theme', next);
+  function deleteNote(hash) {
+    let notes = JSON.parse(localStorage.getItem('notes-db') || '[]');
+    notes = notes.filter(n => n.hash !== hash);
+    localStorage.setItem('notes-db', JSON.stringify(notes));
+    renderLibrary();
   }
 
-  function copyLink() {
-    navigator.clipboard.writeText(location.href);
-    if (navigator.vibrate) navigator.vibrate(50);
-    alert('link copied');
+  // 5. Portability
+  function exportJSON() {
+    const data = localStorage.getItem('notes-db');
+    const blob = new Blob([data], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'textarea-backup.json'; a.click();
+  }
+
+  function importJSON() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.onchange = e => {
+      const reader = new FileReader();
+      reader.onload = event => {
+        localStorage.setItem('notes-db', event.target.result);
+        renderLibrary();
+      };
+      reader.readAsText(e.target.files[0]);
+    };
+    input.click();
   }
 
   // Utilities
   const debounce = (f, ms) => { let t; return () => { clearTimeout(t); t = setTimeout(f, ms); }; };
-  article.oninput = () => {
-    document.body.classList.add('typing');
-    document.getElementById('nav').classList.add('hide');
-    clearTimeout(window.typeTimer);
-    window.typeTimer = setTimeout(() => {
-      document.body.classList.remove('typing');
-      document.getElementById('nav').classList.remove('hide');
-      save();
-    }, 800);
-  };
+  article.oninput = debounce(save, 500);
+  window.onhashchange = load;
 
   async function compress(s) {
     const b = new TextEncoder().encode(s);
@@ -249,9 +225,15 @@
     return new TextDecoder().decode(r);
   }
 
-  window.onload = () => { load(); document.body.setAttribute('data-theme', localStorage.getItem('theme') || 'light'); };
-  window.onhashchange = () => { if(!isRendered) load(); };
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+  function cycleTheme() { /* Previous theme logic */ }
+  function updateUI() {
+    const text = article.textContent.trim();
+    document.getElementById('stats').textContent = `${text ? text.split(/\s+/).length : 0}w`;
+  }
+  function copyLink() { navigator.clipboard.writeText(location.href); alert('Copied'); }
+
+  window.onload = () => { load(); renderLibrary(); };
 </script>
 </body>
 </html>
