@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
   <title>textarea</title>
   
+  <!-- Math & Code Libraries -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
@@ -25,12 +26,15 @@
       white-space: pre-wrap; overflow-wrap: break-word; overflow-y: auto;
     }
     
+    /* Navigation */
     .nav { position: fixed; top: 15px; right: 15px; display: flex; gap: 8px; z-index: 100; transition: 0.3s; }
     button { 
       background: var(--ui); border: none; color: var(--txt); padding: 8px 12px; 
       border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500;
     }
+    button.active { background: var(--txt); color: var(--bg); }
 
+    /* Sidebar & Search */
     #sidebar {
       position: fixed; left: -300px; top: 0; width: 300px; height: 100%;
       background: var(--bg); border-right: 1px solid var(--ui); z-index: 200;
@@ -38,21 +42,38 @@
     }
     #sidebar.open { left: 0; box-shadow: 20px 0 50px rgba(0,0,0,0.2); }
     
-    .note-item { padding: 12px; border-radius: 8px; margin-bottom: 8px; background: var(--ui); cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; }
-    .note-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #search {
+      width: 100%; background: var(--ui); border: 1px solid rgba(128,128,128,0.2);
+      padding: 10px; color: var(--txt); border-radius: 8px; margin-bottom: 15px;
+      outline: none; font-size: 14px;
+    }
 
-    /* Backlinking styles */
+    #note-list { max-height: calc(100% - 200px); overflow-y: auto; }
+    .note-item { 
+      padding: 12px; border-radius: 8px; margin-bottom: 8px; 
+      background: var(--ui); cursor: pointer; font-size: 13px; 
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .note-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+
+    /* Markdown Styles */
     .wikilink { color: var(--acc); text-decoration: underline; cursor: pointer; }
     img { max-width: 100%; border-radius: 8px; margin: 10px 0; }
+    pre[class*="language-"] { border-radius: 8px; margin: 1em 0; }
 
-    footer { position: fixed; bottom: 15px; left: 15px; font-size: 11px; opacity: 0.4; }
+    footer { position: fixed; bottom: 15px; left: 15px; font-size: 11px; opacity: 0.4; pointer-events: none; }
+    
+    @media print { .nav, footer, #sidebar { display: none; } article { padding: 0; } }
   </style>
 </head>
 <body data-theme="light">
 
 <div id="sidebar">
-  <button onclick="dailyNote()" style="width: 100%; margin-bottom: 10px;">📅 Today</button>
+  <input type="text" id="search" placeholder="Search #tags or notes..." oninput="renderLibrary()">
+  <button onclick="dailyNote()" style="width: 100%; margin-bottom: 15px;">📅 Today</button>
+  
   <div id="note-list"></div>
+  
   <div style="position: absolute; bottom: 20px; width: 260px; display: flex; gap: 5px;">
     <button onclick="exportJSON()" style="flex: 1;">Export</button>
     <button onclick="importJSON()" style="flex: 1;">Import</button>
@@ -61,6 +82,7 @@
 
 <div class="nav" id="nav">
   <button onclick="toggleSidebar()">library</button>
+  <button onclick="cycleTheme()">vibe</button>
   <button id="view-btn" onclick="toggleView()">render</button>
   <button onclick="copyLink()">share</button>
 </div>
@@ -72,69 +94,11 @@
 <script>
   const article = document.querySelector('article');
   const viewBtn = document.getElementById('view-btn');
+  const themes = ['light', 'dark', 'sepia', 'midnight'];
   let isRendered = false;
   let rawContent = "";
 
-  // 1. Backlinking & Image Support
-  article.addEventListener('paste', async (e) => {
-    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    for (const item of items) {
-      if (item.type.indexOf("image") !== -1) {
-        e.preventDefault();
-        const blob = item.getAsFile();
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const imgTag = `\n![image](${event.target.result})\n`;
-          document.execCommand('insertText', false, imgTag);
-        };
-        reader.readAsDataURL(blob);
-      }
-    }
-  });
-
-  // 2. Render Engine (Markdown + WikiLinks + Images)
-  function toggleView() {
-    isRendered = !isRendered;
-    viewBtn.classList.toggle('active', isRendered);
-    if (isRendered) {
-      rawContent = article.textContent;
-      let html = rawContent.replace(/&/g, '&amp;').replace(/</g, '&lt;')
-        .replace(/\[\[(.*?)\]\]/g, (m, name) => `<span class="wikilink" onclick="openNote('${name}')">[[${name}]]</span>`)
-        .replace(/!\[image\]\((.*?)\)/g, (m, src) => `<img src="${src}">`)
-        .replace(/```(\w+)?\n([\s\S]+?)\n```/g, (m, lang, code) => `<pre class="language-${lang||'clike'}"><code>${code}</code></pre>`)
-        .replace(/\$\$([\s\S]+?)\$\$/g, (m, mth) => `<div>${mth}</div>`)
-        .replace(/\$([^\n$]+?)\$/g, (m, mth) => `<span>${mth}</span>`);
-      
-      article.innerHTML = html;
-      article.contentEditable = false;
-      if (window.Prism) Prism.highlightAllUnder(article);
-    } else {
-      article.contentEditable = 'plaintext-only';
-      article.textContent = rawContent;
-      article.focus();
-    }
-  }
-
-  function openNote(name) {
-    const notes = JSON.parse(localStorage.getItem('notes-db') || '[]');
-    const note = notes.find(n => n.title.toLowerCase() === name.toLowerCase());
-    if (note) {
-      location.hash = note.hash;
-    } else {
-      article.textContent = `# ${name}\n\nStart writing...`;
-      save();
-    }
-    if(isRendered) toggleView();
-  }
-
-  // 3. Daily Notes
-  function dailyNote() {
-    const today = new Date().toISOString().split('T')[0];
-    openNote(today);
-    toggleSidebar();
-  }
-
-  // 4. Persistence
+  // 1. Core Logic: Save & Load
   async function save() {
     if (isRendered) return;
     const text = article.textContent;
@@ -145,12 +109,18 @@
     }
     updateUI();
     
-    // Update Library Item
+    // Auto-update Library Entry
     const notes = JSON.parse(localStorage.getItem('notes-db') || '[]');
     const title = text.trim().split('\n')[0].replace('#', '').trim() || 'Untitled';
     const index = notes.findIndex(n => n.hash === hash);
-    if (index > -1) notes[index].title = title;
-    else notes.unshift({ title, hash, date: Date.now() });
+    const tags = text.match(/#\w+/g) || [];
+    
+    if (index > -1) {
+      notes[index].title = title;
+      notes[index].tags = tags;
+    } else {
+      notes.unshift({ title, hash, tags, date: Date.now() });
+    }
     localStorage.setItem('notes-db', JSON.stringify(notes.slice(0, 100)));
     renderLibrary();
   }
@@ -163,12 +133,21 @@
     updateUI();
   }
 
+  // 2. Library & Search
   function renderLibrary() {
+    const query = document.getElementById('search').value.toLowerCase();
     const notes = JSON.parse(localStorage.getItem('notes-db') || '[]');
-    document.getElementById('note-list').innerHTML = notes.map(n => `
+    const container = document.getElementById('note-list');
+    
+    const filtered = notes.filter(n => 
+      n.title.toLowerCase().includes(query) || 
+      (n.tags && n.tags.some(t => t.toLowerCase().includes(query)))
+    );
+
+    container.innerHTML = filtered.map(n => `
       <div class="note-item" onclick="location.hash='${n.hash}'; toggleSidebar();">
         <span>${n.title}</span>
-        <small style="opacity:0.3" onclick="deleteNote('${n.hash}'); event.stopPropagation();">×</small>
+        <small style="opacity:0.3; padding: 5px;" onclick="deleteNote('${n.hash}'); event.stopPropagation();">×</small>
       </div>
     `).join('');
   }
@@ -180,33 +159,93 @@
     renderLibrary();
   }
 
-  // 5. Portability
-  function exportJSON() {
-    const data = localStorage.getItem('notes-db');
-    const blob = new Blob([data], {type: 'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'textarea-backup.json'; a.click();
+  // 3. Smart Typing (Checkboxes, Indents, Lists)
+  article.addEventListener('keydown', e => {
+    if (isRendered) return;
+    if (e.key === 'Enter') {
+      const sel = window.getSelection();
+      const range = sel.getRangeAt(0);
+      const text = range.startContainer.textContent.substring(0, range.startOffset);
+      const line = text.split('\n').pop();
+      const match = line.match(/^(\s*([-*]|\[[ x]\]|\d+\.)\s*)/);
+      if (match) {
+        e.preventDefault();
+        let marker = match[0];
+        if (marker.match(/\d+/)) marker = marker.replace(/\d+/, m => parseInt(m) + 1);
+        document.execCommand('insertText', false, '\n' + marker);
+      }
+    }
+  });
+
+  article.onclick = (e) => {
+    if (isRendered) return;
+    const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+    if (!range) return;
+    const text = range.startContainer.textContent;
+    const offset = range.startOffset;
+    if (text.substring(offset-1, offset+2).match(/\[[ x]\]/)) {
+      const isChecked = text.substring(offset-1, offset+2) === '[x]';
+      range.startContainer.textContent = text.substring(0, offset-1) + (isChecked ? '[ ]' : '[x]') + text.substring(offset+2);
+      if (navigator.vibrate) navigator.vibrate(20);
+      save();
+    }
+  };
+
+  // 4. Rendering (Math, Code, Wiki)
+  function toggleView() {
+    isRendered = !isRendered;
+    viewBtn.classList.toggle('active', isRendered);
+    if (isRendered) {
+      rawContent = article.textContent;
+      let html = rawContent.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/\[\[(.*?)\]\]/g, (m, name) => `<span class="wikilink" onclick="openNote('${name}')">[[${name}]]</span>`)
+        .replace(/```(\w+)?\n([\s\S]+?)\n```/g, (m, lang, code) => `<pre class="language-${lang||'clike'}"><code>${code}</code></pre>`)
+        .replace(/\$\$([\s\S]+?)\$\$/g, (m, mth) => `<div class="math-block">${mth}</div>`)
+        .replace(/\$([^\n$]+?)\$/g, (m, mth) => `<span class="math-inline">${mth}</span>`);
+      article.innerHTML = html;
+      article.contentEditable = false;
+      if (window.Prism) Prism.highlightAllUnder(article);
+      document.querySelectorAll('.math-block').forEach(el => katex.render(el.textContent, el, { displayMode: true }));
+      document.querySelectorAll('.math-inline').forEach(el => katex.render(el.textContent, el, { displayMode: false }));
+    } else {
+      article.contentEditable = 'plaintext-only';
+      article.textContent = rawContent;
+      article.focus();
+    }
   }
 
-  function importJSON() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.onchange = e => {
-      const reader = new FileReader();
-      reader.onload = event => {
-        localStorage.setItem('notes-db', event.target.result);
-        renderLibrary();
-      };
-      reader.readAsText(e.target.files[0]);
-    };
-    input.click();
+  function openNote(name) {
+    const notes = JSON.parse(localStorage.getItem('notes-db') || '[]');
+    const note = notes.find(n => n.title.toLowerCase() === name.toLowerCase());
+    if (note) location.hash = note.hash;
+    else { article.textContent = `# ${name}\n\n`; save(); }
+    if(isRendered) toggleView();
   }
 
-  // Utilities
-  const debounce = (f, ms) => { let t; return () => { clearTimeout(t); t = setTimeout(f, ms); }; };
-  article.oninput = debounce(save, 500);
-  window.onhashchange = load;
+  function dailyNote() {
+    const name = new Date().toISOString().split('T')[0];
+    openNote(name);
+    toggleSidebar();
+  }
+
+  // 5. Utilities
+  function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+  function cycleTheme() {
+    const cur = document.body.getAttribute('data-theme');
+    const next = themes[(themes.indexOf(cur) + 1) % themes.length];
+    document.body.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+  }
+
+  function updateUI() {
+    const text = article.textContent.trim();
+    document.getElementById('stats').textContent = `${text ? text.split(/\s+/).length : 0}w`;
+    
+    // Focus Mode Logic
+    document.getElementById('nav').classList.add('hide');
+    clearTimeout(window.typeTimer);
+    window.typeTimer = setTimeout(() => document.getElementById('nav').classList.remove('hide'), 1000);
+  }
 
   async function compress(s) {
     const b = new TextEncoder().encode(s);
@@ -225,15 +264,14 @@
     return new TextDecoder().decode(r);
   }
 
-  function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
-  function cycleTheme() { /* Previous theme logic */ }
-  function updateUI() {
-    const text = article.textContent.trim();
-    document.getElementById('stats').textContent = `${text ? text.split(/\s+/).length : 0}w`;
-  }
-  function copyLink() { navigator.clipboard.writeText(location.href); alert('Copied'); }
-
-  window.onload = () => { load(); renderLibrary(); };
+  function copyLink() { navigator.clipboard.writeText(location.href); alert('Link copied'); }
+  
+  const debounce = (f, ms) => { let t; return () => { clearTimeout(t); t = setTimeout(f, ms); }; };
+  article.oninput = debounce(save, 500);
+  window.onhashchange = () => { if(!isRendered) load(); };
+  window.onload = () => { load(); renderLibrary(); document.body.setAttribute('data-theme', localStorage.getItem('theme')||'light'); };
+  
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 </script>
 </body>
 </html>
