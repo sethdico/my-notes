@@ -143,7 +143,10 @@
       w.write(b); w.close();
       const r = await new Response(st.readable).arrayBuffer();
       return new TextDecoder().decode(r);
-    } catch(e) { return ""; }
+    } catch(e) { 
+      console.error('Decompression failed:', e);
+      return ""; 
+    }
   }
 
   async function autoSave() {
@@ -207,6 +210,12 @@
   }
 
   // 3. RENDERING (Audit: Sanitization & Mode Handling)
+  function sanitizeHTML(html) {
+    const div = document.createElement('div');
+    div.textContent = html;
+    return div.innerHTML;
+  }
+
   function toggleView() {
     isRendered = !isRendered;
     viewBtn.classList.toggle('active', isRendered);
@@ -214,9 +223,9 @@
       rawContent = article.textContent;
       let html = rawContent
         .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-        .replace(/```(\w+)?\n([\s\S]+?)\n```/g, (m, l, c) => `<pre class="language-${l||'clike'}"><code>${c}</code></pre>`)
-        .replace(/\$\$([\s\S]+?)\$\$/g, (m, mth) => `<div class="math-block">${mth}</div>`)
-        .replace(/\$([^\n$]+?)\$/g, (m, mth) => `<span class="math-inline">${mth}</span>`);
+        .replace(/```(\w+)?\n([\s\S]+?)\n```/g, (m, l, c) => `<pre class="language-${l||'clike'}"><code>${sanitizeHTML(c)}</code></pre>`)
+        .replace(/\$\$([\s\S]+?)\$\$/g, (m, mth) => `<div class="math-block">${sanitizeHTML(mth)}</div>`)
+        .replace(/\$([^\n$]+?)\$/g, (m, mth) => `<span class="math-inline">${sanitizeHTML(mth)}</span>`);
       
       article.innerHTML = html;
       article.contentEditable = false;
