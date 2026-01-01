@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <link rel="manifest" href="manifest.json">
+  <title>Textarea</title>
+  <style>
+    :root { --bg: #fff; --text: #161616; --meta: #888; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #000; --text: #eee; --meta: #666; } }
+    
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { background: var(--bg); color: var(--text); color-scheme: light dark; }
+    
+    body { font: 18px/1.6 system-ui, -apple-system, sans-serif; }
+    
+    article {
+      outline: none;
+      padding: 20px max(20px, calc(50vw - 400px));
+      min-height: calc(100vh - 40px);
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Modern Footer/Status Bar */
+    footer {
+      position: fixed;
+      bottom: 0; right: 0;
+      padding: 10px 20px;
+      font-size: 12px;
+      color: var(--meta);
+      display: flex;
+      gap: 15px;
+      pointer-events: none;
+    }
+
+    .toolbar {
+      position: fixed;
+      top: 10px; right: 10px;
+      display: flex; gap: 8px;
+    }
+
+    button {
+      background: rgba(128,128,128,0.1);
+      border: none; color: inherit;
+      padding: 8px 12px; border-radius: 8px;
+      cursor: pointer; font-size: 14px;
+    }
+
+    @media print { .toolbar, footer { display: none; } }
+  </style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button onclick="share()">Share</button>
+  <button onclick="location.href='./qr' + location.hash">QR</button>
+</div>
+
+<article contenteditable="plaintext-only" spellcheck="true" autofocus></article>
+
+<footer>
+  <span id="stats">0 words</span>
+  <span id="status">Saved</span>
+</footer>
+
+<script>
+  const article = document.querySelector('article');
+  const status = document.getElementById('status');
+  const stats = document.getElementById('stats');
+
+  // Load data
+  async function load() {
+    const hash = location.hash || localStorage.getItem('hash');
+    if (hash) {
+      try {
+        const decoded = await decompress(hash.slice(1));
+        const [content, style] = decoded.split('\x00');
+        article.textContent = content;
+        if (style) article.setAttribute('style', style);
+      } catch (e) {
+        console.error("Failed to decompress", e);
+      }
+    }
+    updateUI();
+  }
+
+  // Save data
+  async function save() {
+    status.textContent = 'Saving...';
+    const style = article.getAttribute('style');
+    const content = article.textContent + (style ? '\x00' + style : '');
+    const hash = '#' + await compress(content);
+    
+    if (location.hash !== hash) {
+      history.replaceState(null, '', hash);
+      localStorage.setItem('hash', hash);
+    }
+    updateUI();
+    status.textContent = 'Saved';
+  }
+
+  function updateUI() {
+    // Update Title
+    const match = article.textContent.match(/^\n*#(.+)\n/);
+    document.title = match?.[1].trim() ?? 'Textarea';
+    
+    // Update Stats
+    const text = article.textContent.trim();
+    const words = text ? text.split(/\s+/).length : 0;
+    stats.textContent = `${words} words | ${text.length} chars`;
+  }
+
+  async function share() {
+    try {
+      await navigator.share({ title: document.title, url: location.href });
+    } catch (e) {
+      navigator.clipboard.writeText(location.href);
+      alert('Link copied to clipboard');
+    }
+  }
+
+  // Compression logic (Standardized)
+  async function compress(str) {
+    const buf = new TextEncoder().encode(str);
+    const stream = new CompressionStream('deflate-raw');
+    const writer = stream.writable.getWriter();
+    writer.write(buf); writer.close();
+    const res = await new Response(stream.readable).arrayBuffer();
+    return btoa(String.fromCharCode(...new Uint8Array(res)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  async function decompress(base64) {
+    const str = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
+    const buf = Uint8Array.from(str, c => c.charCodeAt(0));
+    const stream = new DecompressionStream('deflate-raw');
+    const writer = stream.writable.getWriter();
+    writer.write(buf); writer.close();
+    const res = await new Response(stream.readable).arrayBuffer();
+    return new TextDecoder().decode(res);
+  }
+
+  // Events
+  const debounce = (fn, ms) => { let t; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; };
+  article.addEventListener('input', debounce(save, 500));
+  window.addEventListener('hashchange', load);
+  window.addEventListener('DOMContentLoaded', load);
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
