@@ -5,136 +5,160 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
   <title>textarea</title>
   <style>
-    :root { --bg: #fff; --text: #161616; --f-sans: system-ui; --f-mono: monospace; --f-serif: serif; }
-    @media (prefers-color-scheme: dark) { :root { --bg: #000; --text: #eee; } }
+    :root { --bg: #fff; --text: #161616; --accent: #007aff; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0b0b0b; --text: #d1d1d1; } }
     
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { background: var(--bg); color: var(--text); height: 100%; font-size: 18px; transition: background 0.3s; }
+    html, body { background: var(--bg); color: var(--text); height: 100%; font-family: system-ui; transition: background 0.3s; }
     
-    /* Font classes */
-    .sans { font-family: var(--f-sans); }
-    .mono { font-family: var(--f-mono); }
-    .serif { font-family: var(--f-serif); }
-
     article {
-      outline: none;
-      padding: 40px max(20px, calc(50vw - 350px));
-      min-height: 100vh;
-      line-height: 1.6;
-      white-space: pre-wrap;
-      overflow-wrap: break-word;
+      outline: none; padding: 60px max(20px, calc(50vw - 350px));
+      min-height: 100vh; line-height: 1.6; font-size: 19px;
+      white-space: pre-wrap; overflow-wrap: break-word;
     }
+
+    /* Reading Mode */
+    article.locked { user-select: none; caret-color: transparent; }
 
     .nav {
       position: fixed; top: 15px; right: 15px;
-      display: flex; gap: 10px; opacity: 0.4; transition: 0.3s;
+      display: flex; gap: 8px; z-index: 10;
     }
-    .nav:hover, .nav:focus-within { opacity: 1; }
-    .nav.hidden { opacity: 0; pointer-events: none; }
 
     button {
-      background: none; border: 1px solid currentColor; color: inherit;
-      padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 13px;
+      background: rgba(128,128,128,0.1); border: none; color: inherit;
+      padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
     }
 
     footer {
       position: fixed; bottom: 15px; left: 15px;
-      font-size: 12px; opacity: 0.4; cursor: pointer; user-select: none;
+      font-size: 12px; opacity: 0.3; display: flex; align-items: center; gap: 8px;
     }
+
+    #save-dot {
+      width: 6px; height: 6px; background: var(--accent); 
+      border-radius: 50%; opacity: 0; transition: 0.5s;
+    }
+    #save-dot.active { opacity: 1; }
+
+    @media print { .nav, footer { display: none; } }
   </style>
 </head>
-<body class="sans">
+<body>
 
-<div class="nav" id="nav">
+<div class="nav">
+  <button id="lock-btn" onclick="toggleLock()">lock</button>
   <button onclick="copyLink()">copy link</button>
   <button onclick="location.href='./qr'+location.hash">qr</button>
 </div>
 
 <article contenteditable="plaintext-only" spellcheck="true" autofocus></article>
 
-<footer onclick="cycleFont()" id="stats">0 words</footer>
+<footer>
+  <div id="save-dot"></div>
+  <span id="stats" onclick="cycleFont()">0 words</span>
+</footer>
 
 <script>
   const article = document.querySelector('article');
-  const nav = document.getElementById('nav');
+  const dot = document.getElementById('save-dot');
   const stats = document.getElementById('stats');
-  const fonts = ['sans', 'serif', 'mono'];
-  let currentFont = 0;
+  const lockBtn = document.getElementById('lock-btn');
 
-  // Load from URL or LocalStorage
+  // 1. Smart Lists & Tab handling
+  article.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const selection = window.getSelection();
+      const range = selection.getRangeAt(0);
+      const textBeforeCursor = range.startContainer.textContent.substring(0, range.startOffset);
+      const lines = textBeforeCursor.split('\n');
+      const lastLine = lines[lines.length - 1];
+
+      // Match list patterns: "- ", "* ", "1. "
+      const listMatch = lastLine.match(/^(\s*[-*]\s*|^\s*(\+)\s*|^\s*\d+\.\s*)/);
+      if (listMatch) {
+        e.preventDefault();
+        let nextMarker = listMatch[0];
+        // Increment number if it's a numbered list
+        if (nextMarker.match(/\d+/)) {
+          nextMarker = nextMarker.replace(/\d+/, m => parseInt(m) + 1);
+        }
+        document.execCommand('insertText', false, '\n' + nextMarker);
+      }
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      document.execCommand('insertText', false, '    ');
+    }
+  });
+
+  // 2. Reading Mode
+  function toggleLock() {
+    const isLocked = article.getAttribute('contenteditable') === 'false';
+    article.setAttribute('contenteditable', isLocked ? 'plaintext-only' : 'false');
+    article.classList.toggle('locked');
+    lockBtn.textContent = isLocked ? 'lock' : 'unlock';
+    if (navigator.vibrate) navigator.vibrate(10);
+  }
+
+  // 3. Load/Save
   async function load() {
     const hash = location.hash || localStorage.getItem('hash');
     if (hash) {
       try {
-        const decoded = await decompress(hash.slice(1));
-        article.textContent = decoded;
-      } catch (e) { console.log('load error'); }
+        article.textContent = await decompress(hash.slice(1));
+      } catch (e) { console.error('load failed'); }
     }
     updateUI();
   }
 
-  // Save
   async function save() {
+    dot.classList.add('active');
     const content = article.textContent;
     const hash = '#' + await compress(content);
     history.replaceState(null, '', hash);
     localStorage.setItem('hash', hash);
     updateUI();
+    setTimeout(() => dot.classList.remove('active'), 800);
   }
 
   function updateUI() {
     const text = article.textContent.trim();
     const words = text ? text.split(/\s+/).length : 0;
     stats.textContent = `${words}w | ${text.length}c`;
-    
-    const titleMatch = text.match(/^#\s*(.*)/);
-    document.title = titleMatch ? titleMatch[1].substring(0, 20) : 'textarea';
+    const title = text.match(/^#\s*(.*)/);
+    document.title = title ? title[1].substring(0, 20) : 'textarea';
   }
 
-  function cycleFont() {
-    currentFont = (currentFont + 1) % fonts.length;
-    document.body.className = fonts[currentFont];
-  }
+  // Utilities
+  const debounce = (fn, ms) => { let t; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; };
+  article.oninput = debounce(save, 600);
 
   function copyLink() {
     navigator.clipboard.writeText(location.href);
+    const b = event.target; b.textContent = 'copied';
+    setTimeout(() => b.textContent = 'copy link', 2000);
     if (navigator.vibrate) navigator.vibrate(50);
-    const btn = document.querySelector('button');
-    const oldText = btn.textContent;
-    btn.textContent = 'copied';
-    setTimeout(() => btn.textContent = oldText, 2000);
   }
-
-  // Auto-hide UI while typing (Focus Mode)
-  let typingTimer;
-  article.oninput = () => {
-    nav.classList.add('hidden');
-    clearTimeout(typingTimer);
-    typingTimer = setTimeout(() => {
-      nav.classList.remove('hidden');
-      save();
-    }, 800);
-  };
 
   // Compression
-  async function compress(str) {
-    const buf = new TextEncoder().encode(str);
-    const stream = new CompressionStream('deflate-raw');
-    const writer = stream.writable.getWriter();
-    writer.write(buf); writer.close();
-    const res = await new Response(stream.readable).arrayBuffer();
-    return btoa(String.fromCharCode(...new Uint8Array(res)))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  async function compress(s) {
+    const b = new TextEncoder().encode(s);
+    const st = new CompressionStream('deflate-raw');
+    const w = st.writable.getWriter();
+    w.write(b); w.close();
+    const r = await new Response(st.readable).arrayBuffer();
+    return btoa(String.fromCharCode(...new Uint8Array(r))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
 
-  async function decompress(base64) {
-    const str = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
-    const buf = Uint8Array.from(str, c => c.charCodeAt(0));
-    const stream = new DecompressionStream('deflate-raw');
-    const writer = stream.writable.getWriter();
-    writer.write(buf); writer.close();
-    const res = await new Response(stream.readable).arrayBuffer();
-    return new TextDecoder().decode(res);
+  async function decompress(n) {
+    const s = atob(n.replace(/-/g, '+').replace(/_/g, '/'));
+    const b = Uint8Array.from(s, c => c.charCodeAt(0));
+    const st = new DecompressionStream('deflate-raw');
+    const w = st.writable.getWriter();
+    w.write(b); w.close();
+    const r = await new Response(st.readable).arrayBuffer();
+    return new TextDecoder().decode(r);
   }
 
   window.onload = load;
