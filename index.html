@@ -3,127 +3,120 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
-  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-  <link rel="manifest" href="manifest.json">
-  <title>Textarea</title>
+  <title>textarea</title>
   <style>
-    :root { --bg: #fff; --text: #161616; --meta: #888; }
-    @media (prefers-color-scheme: dark) { :root { --bg: #000; --text: #eee; --meta: #666; } }
+    :root { --bg: #fff; --text: #161616; --f-sans: system-ui; --f-mono: monospace; --f-serif: serif; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #000; --text: #eee; } }
     
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html { background: var(--bg); color: var(--text); color-scheme: light dark; }
+    html, body { background: var(--bg); color: var(--text); height: 100%; font-size: 18px; transition: background 0.3s; }
     
-    body { font: 18px/1.6 system-ui, -apple-system, sans-serif; }
-    
+    /* Font classes */
+    .sans { font-family: var(--f-sans); }
+    .mono { font-family: var(--f-mono); }
+    .serif { font-family: var(--f-serif); }
+
     article {
       outline: none;
-      padding: 20px max(20px, calc(50vw - 400px));
-      min-height: calc(100vh - 40px);
+      padding: 40px max(20px, calc(50vw - 350px));
+      min-height: 100vh;
+      line-height: 1.6;
       white-space: pre-wrap;
       overflow-wrap: break-word;
-      -webkit-font-smoothing: antialiased;
     }
 
-    /* Modern Footer/Status Bar */
-    footer {
-      position: fixed;
-      bottom: 0; right: 0;
-      padding: 10px 20px;
-      font-size: 12px;
-      color: var(--meta);
-      display: flex;
-      gap: 15px;
-      pointer-events: none;
+    .nav {
+      position: fixed; top: 15px; right: 15px;
+      display: flex; gap: 10px; opacity: 0.4; transition: 0.3s;
     }
-
-    .toolbar {
-      position: fixed;
-      top: 10px; right: 10px;
-      display: flex; gap: 8px;
-    }
+    .nav:hover, .nav:focus-within { opacity: 1; }
+    .nav.hidden { opacity: 0; pointer-events: none; }
 
     button {
-      background: rgba(128,128,128,0.1);
-      border: none; color: inherit;
-      padding: 8px 12px; border-radius: 8px;
-      cursor: pointer; font-size: 14px;
+      background: none; border: 1px solid currentColor; color: inherit;
+      padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 13px;
     }
 
-    @media print { .toolbar, footer { display: none; } }
+    footer {
+      position: fixed; bottom: 15px; left: 15px;
+      font-size: 12px; opacity: 0.4; cursor: pointer; user-select: none;
+    }
   </style>
 </head>
-<body>
+<body class="sans">
 
-<div class="toolbar">
-  <button onclick="share()">Share</button>
-  <button onclick="location.href='./qr' + location.hash">QR</button>
+<div class="nav" id="nav">
+  <button onclick="copyLink()">copy link</button>
+  <button onclick="location.href='./qr'+location.hash">qr</button>
 </div>
 
 <article contenteditable="plaintext-only" spellcheck="true" autofocus></article>
 
-<footer>
-  <span id="stats">0 words</span>
-  <span id="status">Saved</span>
-</footer>
+<footer onclick="cycleFont()" id="stats">0 words</footer>
 
 <script>
   const article = document.querySelector('article');
-  const status = document.getElementById('status');
+  const nav = document.getElementById('nav');
   const stats = document.getElementById('stats');
+  const fonts = ['sans', 'serif', 'mono'];
+  let currentFont = 0;
 
-  // Load data
+  // Load from URL or LocalStorage
   async function load() {
     const hash = location.hash || localStorage.getItem('hash');
     if (hash) {
       try {
         const decoded = await decompress(hash.slice(1));
-        const [content, style] = decoded.split('\x00');
-        article.textContent = content;
-        if (style) article.setAttribute('style', style);
-      } catch (e) {
-        console.error("Failed to decompress", e);
-      }
+        article.textContent = decoded;
+      } catch (e) { console.log('load error'); }
     }
     updateUI();
   }
 
-  // Save data
+  // Save
   async function save() {
-    status.textContent = 'Saving...';
-    const style = article.getAttribute('style');
-    const content = article.textContent + (style ? '\x00' + style : '');
+    const content = article.textContent;
     const hash = '#' + await compress(content);
-    
-    if (location.hash !== hash) {
-      history.replaceState(null, '', hash);
-      localStorage.setItem('hash', hash);
-    }
+    history.replaceState(null, '', hash);
+    localStorage.setItem('hash', hash);
     updateUI();
-    status.textContent = 'Saved';
   }
 
   function updateUI() {
-    // Update Title
-    const match = article.textContent.match(/^\n*#(.+)\n/);
-    document.title = match?.[1].trim() ?? 'Textarea';
-    
-    // Update Stats
     const text = article.textContent.trim();
     const words = text ? text.split(/\s+/).length : 0;
-    stats.textContent = `${words} words | ${text.length} chars`;
+    stats.textContent = `${words}w | ${text.length}c`;
+    
+    const titleMatch = text.match(/^#\s*(.*)/);
+    document.title = titleMatch ? titleMatch[1].substring(0, 20) : 'textarea';
   }
 
-  async function share() {
-    try {
-      await navigator.share({ title: document.title, url: location.href });
-    } catch (e) {
-      navigator.clipboard.writeText(location.href);
-      alert('Link copied to clipboard');
-    }
+  function cycleFont() {
+    currentFont = (currentFont + 1) % fonts.length;
+    document.body.className = fonts[currentFont];
   }
 
-  // Compression logic (Standardized)
+  function copyLink() {
+    navigator.clipboard.writeText(location.href);
+    if (navigator.vibrate) navigator.vibrate(50);
+    const btn = document.querySelector('button');
+    const oldText = btn.textContent;
+    btn.textContent = 'copied';
+    setTimeout(() => btn.textContent = oldText, 2000);
+  }
+
+  // Auto-hide UI while typing (Focus Mode)
+  let typingTimer;
+  article.oninput = () => {
+    nav.classList.add('hidden');
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => {
+      nav.classList.remove('hidden');
+      save();
+    }, 800);
+  };
+
+  // Compression
   async function compress(str) {
     const buf = new TextEncoder().encode(str);
     const stream = new CompressionStream('deflate-raw');
@@ -144,12 +137,7 @@
     return new TextDecoder().decode(res);
   }
 
-  // Events
-  const debounce = (fn, ms) => { let t; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; };
-  article.addEventListener('input', debounce(save, 500));
-  window.addEventListener('hashchange', load);
-  window.addEventListener('DOMContentLoaded', load);
-
+  window.onload = load;
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 </script>
 </body>
